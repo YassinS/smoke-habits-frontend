@@ -1,0 +1,32 @@
+@import 'tailwindcss';
+
+/* Skeleton base styles */
+@import '@skeletonlabs/skeleton';
+
+/* Global base styles without Tailwind directives to keep lint quiet */
+html, body, #svelte {
+	height: 100%;
+}
+body {
+	background-color: #0a0a0a; /* neutral-950 */
+	color: #ffffff;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	background-image:
+		radial-gradient(1200px 600px at 20% -10%, rgba(52, 211, 153, 0.08), transparent),
+		radial-gradient(1200px 600px at 80% -10%, rgba(59, 130, 246, 0.08), transparent);
+	background-repeat: no-repeat;
+}
+
+/* Helper classes (plain CSS) */
+.selected {
+	background-color: rgba(255, 255, 255, 0.2);
+}
+.glass {
+	border-radius: 0.75rem;
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	background: rgba(255, 255, 255, 0.05);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
