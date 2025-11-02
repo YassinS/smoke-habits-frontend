@@ -9,6 +9,10 @@
 			"destination": "https://api.smoke-habits.yassinsassi.com/cigarettes/:path*"
 		},
 		{
+			"source": "/cigarettes",
+			"destination": "https://api.smoke-habits.yassinsassi.com/cigarettes"
+		},
+		{
 			"source": "/analytics/:path*",
 			"destination": "https://api.smoke-habits.yassinsassi.com/analytics/:path*"
 		},
