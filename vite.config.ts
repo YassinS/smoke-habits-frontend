@@ -6,7 +6,6 @@ export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
 	server: {
 		proxy: {
-			// Proxy API requests to the backend to avoid CORS during development
 			'/auth': {
 				target: 'http://localhost:8080',
 				changeOrigin: true,

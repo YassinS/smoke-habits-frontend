@@ -1,0 +1,20 @@
+{
+	"rewrites": [
+		{
+			"source": "/auth/:path*",
+			"destination": "https://api.smoke-habits.yassinsassi.com/auth/:path*"
+		},
+		{
+			"source": "/cigarettes/:path*",
+			"destination": "https://api.smoke-habits.yassinsassi.com/cigarettes/:path*"
+		},
+		{
+			"source": "/analytics/:path*",
+			"destination": "https://api.smoke-habits.yassinsassi.com/analytics/:path*"
+		},
+		{
+			"source": "/me",
+			"destination": "https://api.smoke-habits.yassinsassi.com/me"
+		}
+	]
+}
