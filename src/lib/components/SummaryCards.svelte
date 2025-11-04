@@ -31,7 +31,11 @@
 
   function toEpoch(value: unknown): number | null {
     if (typeof value !== 'string') return null;
-    const time = Date.parse(value);
+    const hasTimezone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value);
+    const normalized = hasTimezone || value.endsWith('Z')
+      ? value
+      : `${value}Z`;
+    const time = Date.parse(normalized);
     return Number.isFinite(time) ? time : null;
   }
 
