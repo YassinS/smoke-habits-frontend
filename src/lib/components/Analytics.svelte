@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { apiGet, type CigaretteLog } from '$lib/api';
+	import { apiGet, type CigaretteLog, fetchContextAnalytics, type ContextAnalytics } from '$lib/api';
 	import Card from '$lib/components/Card.svelte';
+	import ContextBarChart from '$lib/components/ContextBarChart.svelte';
 
 	export let cigarettes: CigaretteLog[] = [];
 
@@ -42,8 +43,10 @@
 	let daily: DailyStat[] = [];
 	let avgCraving: number | null = null;
 	let longestStreak: number | null = null;
+	let contextAnalytics: ContextAnalytics[] = [];
 	let loading = true;
 	let error: string | null = null;
+	let lastCigaretteCount = 0;
 
 		function trendLabel(trend: TrendDirection) {
 		if (trend === 'UP') return 'Up';
@@ -192,18 +195,20 @@
 		loading = true;
 		error = null;
 		try {
-			const [weeklyData, monthlyData, dailyData, avgData, streakData] = await Promise.all([
+			const [weeklyData, monthlyData, dailyData, avgData, streakData, contextData] = await Promise.all([
 				apiGet('/analytics/weekly'),
 				apiGet('/analytics/monthly'),
 				apiGet('/analytics/daily'),
 				apiGet('/analytics/avg-craving'),
-				apiGet('/analytics/longest-streak')
+				apiGet('/analytics/longest-streak'),
+				fetchContextAnalytics()
 			]);
 			weekly = Array.isArray(weeklyData) ? weeklyData : [];
 			monthly = Array.isArray(monthlyData) ? monthlyData : [];
 			daily = Array.isArray(dailyData) ? dailyData : [];
 			avgCraving = safeNullableNumber(avgData);
 			longestStreak = Number.isFinite(Number(streakData)) ? Number(streakData) : null;
+			contextAnalytics = contextData;
 		} catch (e: any) {
 			console.error(e);
 			error = e?.message ?? 'Unable to load insights right now.';
@@ -213,6 +218,16 @@
 	}
 
 	onMount(load);
+
+	// Refetch context analytics when new cigarettes are logged
+	$: if (cigarettes.length > lastCigaretteCount) {
+		lastCigaretteCount = cigarettes.length;
+		fetchContextAnalytics().then(data => {
+			contextAnalytics = data;
+		}).catch(err => {
+			console.error('Failed to update context analytics:', err);
+		});
+	}
 </script>
 
 <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -333,6 +348,21 @@
 						</div>
 					</div>
 				{/each}
+			</div>
+		{/if}
+	</Card>
+
+	<Card className="p-4 md:col-span-3">
+		<h3 class="font-semibold">Cigarettes by context</h3>
+		{#if loading}
+			<div>Loading...</div>
+		{:else if error}
+			<div class="mt-2 text-sm text-red-300">{error}</div>
+		{:else if !contextAnalytics.length}
+			<div class="mt-2 text-sm text-gray-300">No context data yet. Tag cigarettes with contexts to see patterns.</div>
+		{:else}
+			<div class="mt-4">
+				<ContextBarChart data={contextAnalytics} />
 			</div>
 		{/if}
 	</Card>

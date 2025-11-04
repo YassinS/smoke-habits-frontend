@@ -25,6 +25,13 @@ export type CigaretteLog = {
 	smokeContext?: SmokeContext | null;
 };
 
+export type ContextAnalytics = {
+	context: string;
+	cigaretteCount: number;
+	avgCraving: number;
+	colorUI?: string;
+};
+
 let refreshing: Promise<boolean> | null = null;
 
 async function doRefresh(): Promise<boolean> {
@@ -217,4 +224,30 @@ export async function fetchCigaretteLogs(): Promise<CigaretteLog[]> {
 	return list
 		.map((item, index) => mapCigaretteLog(item, index))
 		.filter((item): item is CigaretteLog => Boolean(item));
+}
+
+export async function fetchContextAnalytics(): Promise<ContextAnalytics[]> {
+	const [analyticsData, contextsData] = await Promise.all([
+		apiGet('/analytics/context'),
+		fetchSmokeContexts()
+	]);
+
+	if (!Array.isArray(analyticsData)) return [];
+
+	const contextColorMap = new Map(contextsData.map((ctx) => [ctx.context, ctx.colorUI]));
+
+	return analyticsData
+		.map((item): ContextAnalytics | null => {
+			if (typeof item !== 'object' || item === null) return null;
+			const record = item as Record<string, unknown>;
+			const context = record.context;
+			const cigaretteCount = record.cigaretteCount;
+			const avgCraving = record.avgCraving;
+			if (typeof context !== 'string') return null;
+			const count = typeof cigaretteCount === 'number' ? cigaretteCount : 0;
+			const craving = typeof avgCraving === 'number' ? avgCraving : 0;
+			const colorUI = contextColorMap.get(context);
+			return { context, cigaretteCount: count, avgCraving: craving, colorUI };
+		})
+		.filter((item): item is ContextAnalytics => item !== null);
 }
