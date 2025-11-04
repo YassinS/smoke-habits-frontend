@@ -3,14 +3,14 @@
 	import Auth from '$lib/components/Auth.svelte';
 	import Analytics from '$lib/components/Analytics.svelte';
 	import SummaryCards from '$lib/components/SummaryCards.svelte';
-    import DailyTimeline from '$lib/components/DailyTimeline.svelte';
+	import DailyTimeline from '$lib/components/DailyTimeline.svelte';
 	import FabLog from '$lib/components/FabLog.svelte';
 	import { onMount } from 'svelte';
 	import { getTokens } from '$lib/auth';
-	import { apiGet } from '$lib/api';
+	import { fetchCigaretteLogs, type CigaretteLog } from '$lib/api';
 
 	let authed = !!getTokens();
-	let cigarettes: Array<{ id: number; timestamp: string; cravingLevel?: number }> = [];
+	let cigarettes: CigaretteLog[] = [];
 	let loading = false;
 	let error: string | null = null;
 	let tab: 'today' | 'insights' = 'today';
@@ -19,7 +19,7 @@
 		loading = true;
 		error = null;
 		try {
-			cigarettes = await apiGet('/cigarettes');
+			cigarettes = await fetchCigaretteLogs();
 		} catch (e: any) {
 			error = e?.message ?? String(e);
 		} finally {

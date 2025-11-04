@@ -5,6 +5,14 @@
 			"destination": "https://api.smoke-habits.yassinsassi.com/auth/:path*"
 		},
 		{
+			"source": "/context",
+			"destination": "https://api.smoke-habits.yassinsassi.com/context"
+		},
+		{
+			"source": "/context/(.*)",
+			"destination": "https://api.smoke-habits.yassinsassi.com/context/$1"
+		},
+		{
 			"source": "/cigarettes",
 			"destination": "https://api.smoke-habits.yassinsassi.com/cigarettes"
 		},

@@ -1,9 +1,9 @@
 <script lang="ts">
   import Card from '$lib/components/Card.svelte';
-  import { apiGet } from '$lib/api';
+  import { apiGet, type CigaretteLog } from '$lib/api';
   import { onMount, onDestroy } from 'svelte';
 
-  export let cigarettes: Array<{ id: number; timestamp: string; cravingLevel?: number }> = [];
+  export let cigarettes: CigaretteLog[] = [];
 
   let avgCraving: number | null = null;
   let weekly: any[] = [];

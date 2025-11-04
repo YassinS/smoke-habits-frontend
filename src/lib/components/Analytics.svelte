@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { apiGet } from '$lib/api';
+	import { apiGet, type CigaretteLog } from '$lib/api';
 	import Card from '$lib/components/Card.svelte';
 
-	export let cigarettes: Array<{ id: number; timestamp: string; cravingLevel?: number }> = [];
+	export let cigarettes: CigaretteLog[] = [];
 
 	const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 

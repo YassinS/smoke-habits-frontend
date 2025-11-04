@@ -1,7 +1,9 @@
 <script lang="ts">
   import { fly, fade } from 'svelte/transition';
 
-  export let cigarettes: Array<{ id: number; timestamp: string; cravingLevel?: number }> = [];
+  import ContextBadge from '$lib/components/ContextBadge.svelte';
+  import type { CigaretteLog } from '$lib/api';
+  export let cigarettes: CigaretteLog[] = [];
 
   let selectedDate = new Date();
   selectedDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
@@ -80,7 +82,10 @@
     const ts = new Date(c.timestamp);
     const prev = index > 0 ? sortedCigs[index - 1] : null;
     const gapMinutes = prev ? Math.max(0, Math.round((ts.getTime() - new Date(prev.timestamp).getTime()) / 60000)) : null;
-    const craving = typeof c.cravingLevel === 'number' ? c.cravingLevel : null;
+    const craving =
+      typeof c.cravingLevel === 'number' && Number.isFinite(c.cravingLevel) && c.cravingLevel !== 0
+        ? c.cravingLevel
+        : null;
     return {
       timestamp: c.timestamp,
       timeLabel: fmtTime(c.timestamp),
@@ -88,7 +93,8 @@
       gapText: gapMinutes === null ? 'First entry today' : `${formatDuration(gapMinutes)} since previous`,
       craving,
       accent: craving !== null ? Math.min(1, craving / 10) : 0.35,
-      gapMinutes
+      gapMinutes,
+      context: c.smokeContext ?? null
     };
   });
 
@@ -234,13 +240,18 @@
                   ></div>
                 </div>
                 <div class="flex-1 rounded-lg border border-white/10 bg-white/5 p-4">
-                  <div class="flex items-center justify-between">
+                  <div class="flex items-center justify-between gap-3">
                     <div class="text-sm font-medium text-white">{entry.summary}</div>
                     {#if entry.craving !== null}
                       <div class="rounded-full bg-emerald-500/15 px-3 py-1 text-xs text-emerald-200">Craving {entry.craving}/10</div>
                     {/if}
                   </div>
                   <div class="mt-2 text-sm text-gray-300">{entry.gapText}</div>
+                  {#if entry.context}
+                    <div class="mt-3">
+                      <ContextBadge label={entry.context.context} color={entry.context.colorUI} />
+                    </div>
+                  {/if}
                 </div>
               </div>
             {/each}
