@@ -5,6 +5,8 @@
 
 	export let cigarettes: Array<{ id: number; timestamp: string; cravingLevel?: number }> = [];
 
+	const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 	type TrendDirection = 'UP' | 'DOWN' | 'NEUTRAL' | null | undefined;
 
 	interface WeeklyStat {
@@ -49,28 +51,42 @@
 		return 'Flat';
 	}
 
-			function extractTrendCount(item: unknown): TrendDirection {
-				if (item && typeof item === 'object' && 'trendCount' in item) {
-					const value = (item as { trendCount?: TrendDirection }).trendCount;
-					if (value === 'UP' || value === 'DOWN' || value === 'NEUTRAL') return value;
-				}
-				return null;
+		function extractTrendCount(item: unknown): TrendDirection {
+			if (item && typeof item === 'object' && 'trendCount' in item) {
+				const value = (item as { trendCount?: TrendDirection }).trendCount;
+				if (value === 'UP' || value === 'DOWN' || value === 'NEUTRAL') return value;
 			}
+			return null;
+		}
 
-			function extractTrendCraving(item: unknown): TrendDirection {
-				if (item && typeof item === 'object' && 'trendCraving' in item) {
-					const value = (item as { trendCraving?: TrendDirection }).trendCraving;
-					if (value === 'UP' || value === 'DOWN' || value === 'NEUTRAL') return value;
-				}
-				return null;
+		function extractTrendCraving(item: unknown): TrendDirection {
+			if (item && typeof item === 'object' && 'trendCraving' in item) {
+				const value = (item as { trendCraving?: TrendDirection }).trendCraving;
+				if (value === 'UP' || value === 'DOWN' || value === 'NEUTRAL') return value;
 			}
+			return null;
+		}
+
+		function parseApiDate(raw: string | undefined): Date | null {
+			if (!raw) return null;
+			if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+				const [y, m, d] = raw.split('-').map(Number);
+				return new Date(y, (m ?? 1) - 1, d ?? 1);
+			}
+			if (/^\d{4}-\d{2}$/.test(raw)) {
+				const [y, m] = raw.split('-').map(Number);
+				return new Date(y, (m ?? 1) - 1, 1);
+			}
+			const parsed = new Date(raw);
+			return Number.isNaN(parsed.getTime()) ? null : parsed;
+		}
 
 		type WeeklyDisplay = WeeklyStat | { totalCigarettes: number; weekLabel: string };
 
 		function totalFor(
 			item: WeeklyDisplay | MonthlyStat | DailyStat | undefined | null
 		): number {
-		if (!item) return 0;
+			if (!item) return 0;
 			const value =
 				(typeof item === 'object' && item !== null && 'totalCigarettes' in item
 					? item.totalCigarettes
@@ -79,9 +95,9 @@
 					? (item as DailyStat).count
 					: undefined) ??
 				0;
-		const numeric = Number(value);
-		return Number.isFinite(numeric) ? numeric : 0;
-	}
+			const numeric = Number(value);
+			return Number.isFinite(numeric) ? numeric : 0;
+		}
 
 		function labelFor(
 			item: WeeklyDisplay | MonthlyStat | DailyStat | undefined,
@@ -99,12 +115,28 @@
 					? (item as DailyStat).day
 					: undefined) ??
 				null;
-		if (!raw) return `Day ${index + 1}`;
-		if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-			return new Date(raw).toLocaleDateString([], { month: 'short', day: 'numeric' });
+			if (!raw) return `Day ${index + 1}`;
+			const parsed = parseApiDate(raw);
+			if (parsed) {
+				const options: Intl.DateTimeFormatOptions = { timeZone: userTimeZone };
+				if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+					return parsed.toLocaleDateString([], {
+						month: 'short',
+						day: 'numeric',
+						timeZone: userTimeZone
+					});
+				}
+				if (/^\d{4}-\d{2}$/.test(raw)) {
+					return parsed.toLocaleDateString([], {
+						month: 'short',
+						year: 'numeric',
+						timeZone: userTimeZone
+					});
+				}
+				return parsed.toLocaleDateString([], options);
+			}
+			return raw;
 		}
-		return raw;
-	}
 
 	function startOfDay(d: Date) {
 		return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
@@ -127,7 +159,7 @@
 			}).length;
 			return {
 				totalCigarettes: count,
-				weekLabel: day.toLocaleDateString([], { weekday: 'short' })
+				weekLabel: day.toLocaleDateString([], { weekday: 'short', timeZone: userTimeZone })
 			} satisfies WeeklyStat;
 		});
 	}
@@ -145,9 +177,8 @@
 	$: fallbackWeekly = deriveWeeklyFromLocal();
 	$: displayWeekly = weekly.length ? weekly : fallbackWeekly;
 		function toEpoch(day: string | undefined) {
-			if (!day) return 0;
-			const dt = new Date(day);
-			return Number.isNaN(dt.getTime()) ? 0 : dt.getTime();
+			const parsed = parseApiDate(day);
+			return parsed ? parsed.getTime() : 0;
 		}
 
 		$: weeklyMax = Math.max(1, ...displayWeekly.map((item) => totalFor(item)));

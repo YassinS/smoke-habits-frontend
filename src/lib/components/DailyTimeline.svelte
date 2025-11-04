@@ -5,6 +5,14 @@
 
   let selectedDate = new Date();
   selectedDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+  const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  function formatDateForInput(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
 
   function startOfDay(d: Date) {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
@@ -24,11 +32,20 @@
   }
 
   function fmtDateHeading(date: Date) {
-    return date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(undefined, {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+      timeZone: userTimeZone
+    });
   }
 
   function fmtTime(timestamp: string) {
-    return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return new Date(timestamp).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: userTimeZone
+    });
   }
 
   function formatDuration(minutes: number) {
@@ -150,7 +167,7 @@
       </div>
       <div class="flex flex-wrap items-center gap-2 text-sm">
         <button class="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 hover:bg-white/15" on:click={prevDay} aria-label="Previous day">◀</button>
-        <input type="date" class="rounded-full border border-white/10 bg-neutral-900 px-3 py-1 text-sm" value={selectedDate.toISOString().slice(0, 10)} on:change={onDateChange} />
+  <input type="date" class="rounded-full border border-white/10 bg-neutral-900 px-3 py-1 text-sm" value={formatDateForInput(selectedDate)} on:change={onDateChange} />
         <button class="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 hover:bg-white/15" on:click={nextDay} aria-label="Next day">▶</button>
         <button class="rounded-full border border-white/10 bg-transparent px-3 py-1 text-xs uppercase tracking-wide text-gray-300 hover:bg-white/10" on:click={goToToday}>Today</button>
       </div>
