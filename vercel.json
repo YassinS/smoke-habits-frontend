@@ -27,6 +27,10 @@
 		{
 			"source": "/me",
 			"destination": "https://api.smoke-habits.yassinsassi.com/me"
+		},
+		{
+			"source": "/me/delete",
+			"destination": "https://api.smoke-habits.yassinsassi.com/me/delete"
 		}
 	]
 }
