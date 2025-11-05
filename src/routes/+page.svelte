@@ -1,13 +1,14 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import Header from '$lib/components/Header.svelte';
 	import Auth from '$lib/components/Auth.svelte';
 	import Analytics from '$lib/components/Analytics.svelte';
 	import SummaryCards from '$lib/components/SummaryCards.svelte';
 	import DailyTimeline from '$lib/components/DailyTimeline.svelte';
 	import FabLog from '$lib/components/FabLog.svelte';
-	import { onMount } from 'svelte';
 	import { getTokens } from '$lib/auth';
 	import { fetchCigaretteLogs, type CigaretteLog } from '$lib/api';
+	import { syncStatus } from '$lib/stores/sync';
 
 	let authed = !!getTokens();
 	let cigarettes: CigaretteLog[] = [];
@@ -28,7 +29,22 @@
 	}
 
 	onMount(() => {
-		if (authed) loadCigs();
+		if (authed) {
+			loadCigs();
+			// Setup online/offline monitoring
+			const handleOnline = () => {
+				syncStatus.setOnline(true);
+			};
+			const handleOffline = () => {
+				syncStatus.setOffline();
+			};
+			window.addEventListener('online', handleOnline);
+			window.addEventListener('offline', handleOffline);
+			return () => {
+				window.removeEventListener('online', handleOnline);
+				window.removeEventListener('offline', handleOffline);
+			};
+		}
 	});
 
 	function onAuthed() {
@@ -37,6 +53,11 @@
 	}
 
 	function onLogged() {
+		loadCigs();
+	}
+
+	// Watch for sync completion and refetch cigarettes
+	$: if ($syncStatus.lastSyncTime) {
 		loadCigs();
 	}
 </script>

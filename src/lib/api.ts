@@ -6,6 +6,20 @@ export const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 type RequestInitLike = RequestInit | undefined;
 
 import { setTokens, clearAuth, getTokens } from '$lib/auth';
+import {
+	initOfflineDB,
+	queuePendingLog,
+	getPendingLogs,
+	removePendingLog,
+	updatePendingLogRetry,
+	setCacheData,
+	getCacheData,
+	isOnline,
+	isSyncInProgress,
+	setSyncCallback,
+	type PendingLog
+} from '$lib/offline';
+import { syncStatus } from '$lib/stores/sync';
 
 export type SmokeContext = {
 	id: string;
@@ -102,15 +116,49 @@ export async function register(email: string, password: string) {
 
 // high-level API helpers
 export async function apiGet(path: string) {
-	const res = await fetchWithAuth(path, { method: 'GET' });
-	if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
-	return res.json();
+	try {
+		const res = await fetchWithAuth(path, { method: 'GET' });
+		if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
+		const data = await res.json();
+		// Cache successful responses
+		await setCacheData(path, data, 5 * 60 * 1000); // 5 min TTL
+		return data;
+	} catch (err) {
+		// Try to serve from cache on error
+		if (!isOnline()) {
+			console.warn(`Offline: attempting to serve ${path} from cache`);
+			const cached = await getCacheData(path);
+			if (cached) {
+				console.log(`Served ${path} from cache`);
+				return cached;
+			}
+		}
+		throw err;
+	}
 }
 
 export async function apiPost(path: string, body: unknown) {
-	const res = await fetchWithAuth(path, { method: 'POST', body: JSON.stringify(body) });
-	if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
-	return res.json();
+	try {
+		const res = await fetchWithAuth(path, { method: 'POST', body: JSON.stringify(body) });
+		if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
+		return res.json();
+	} catch (err) {
+		// If this is a cigarette logging request and we're offline, queue it
+		if (path === '/cigarettes/log' && !isOnline()) {
+			console.warn('Offline: queueing cigarette log', body);
+			await queuePendingLog(body as PendingLog['payload']);
+			// Return optimistic response
+			const bodyRecord = body as Record<string, unknown>;
+			return {
+				id: Math.floor(Math.random() * 1000000),
+				timestamp: new Date().toISOString(),
+				cravingLevel: bodyRecord.cravingLevel ?? null,
+				smokeContext: null,
+				_queued: true
+			};
+		}
+		throw err;
+	}
 }
 
 function normalizeContextId(
@@ -250,4 +298,201 @@ export async function fetchContextAnalytics(): Promise<ContextAnalytics[]> {
 			return { context, cigaretteCount: count, avgCraving: craving, colorUI };
 		})
 		.filter((item): item is ContextAnalytics => item !== null);
+}
+
+/**
+ * Calculate exponential backoff delay (in ms)
+ * After N retries: 1s, 2s, 4s, 8s, 16s, 30s (capped)
+ */
+function getBackoffDelay(retries: number): number {
+	const maxDelay = 30000; // 30 seconds
+	const baseDelay = 1000; // 1 second
+	const delay = baseDelay * Math.pow(2, Math.min(retries, 4));
+	return Math.min(delay, maxDelay);
+}
+
+/**
+ * Check if a pending log should be retried based on retry count and time
+ */
+function shouldRetry(log: PendingLog): boolean {
+	const maxRetries = 5;
+	if (log.retries >= maxRetries) {
+		console.warn(`Log ${log.id} reached max retries (${maxRetries})`);
+		return false;
+	}
+
+	// Check if enough time has passed since last retry
+	if (log.lastRetryTime) {
+		const timeSinceLastRetry = Date.now() - log.lastRetryTime;
+		const requiredDelay = getBackoffDelay(log.retries);
+		if (timeSinceLastRetry < requiredDelay) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+let syncInProgress = false;
+let connectionCheckInterval: ReturnType<typeof setInterval> | null = null;
+let lastKnownOnlineState = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+/**
+ * Start periodic connection checks (every 10 seconds)
+ */
+function startConnectionPolling(): void {
+	if (connectionCheckInterval) return; // Already running
+
+	connectionCheckInterval = setInterval(() => {
+		const isNowOnline = isOnline();
+
+		if (!lastKnownOnlineState && isNowOnline) {
+			console.log('Connection restored via polling, syncing...');
+			syncStatus.setOnline(true);
+			lastKnownOnlineState = true;
+			void syncPendingLogs();
+		} else if (lastKnownOnlineState && !isNowOnline) {
+			console.log('Connection lost via polling');
+			syncStatus.setOffline();
+			lastKnownOnlineState = false;
+		}
+	}, 10000); // Check every 10 seconds
+}
+
+/**
+ * Stop periodic connection checks
+ */
+function stopConnectionPolling(): void {
+	if (connectionCheckInterval) {
+		clearInterval(connectionCheckInterval);
+		connectionCheckInterval = null;
+	}
+}
+export async function initializeOfflineSupport(): Promise<void> {
+	try {
+		await initOfflineDB();
+		console.log('Offline DB initialized');
+
+		// Setup online/offline event listeners with debounce
+		if (typeof window !== 'undefined') {
+			let onlineTimeout: ReturnType<typeof setTimeout> | null = null;
+
+			window.addEventListener('online', () => {
+				console.log('Back online (via event), scheduling sync...');
+				lastKnownOnlineState = true;
+				// Debounce: wait 500ms for connection to stabilize
+				if (onlineTimeout) clearTimeout(onlineTimeout);
+				onlineTimeout = setTimeout(() => {
+					console.log('Connection stable, syncing pending logs...');
+					void syncPendingLogs();
+					onlineTimeout = null;
+				}, 500);
+			});
+
+			window.addEventListener('offline', () => {
+				console.log('Lost connection (via event), will queue requests');
+				lastKnownOnlineState = false;
+				if (onlineTimeout) clearTimeout(onlineTimeout);
+			});
+
+			// Start periodic connection polling as fallback
+			startConnectionPolling();
+		}
+
+		// If we're online, try to sync any pending logs on startup
+		if (isOnline()) {
+			const pending = await getPendingLogs();
+			if (pending.length > 0) {
+				console.log(`Found ${pending.length} pending logs from previous session, syncing...`);
+				void syncPendingLogs();
+			}
+		}
+	} catch (err) {
+		console.error('Failed to initialize offline DB:', err);
+	}
+}
+
+/**
+ * Sync all pending logs with the server
+ */
+export async function syncPendingLogs(): Promise<number> {
+	// Prevent concurrent sync attempts
+	if (syncInProgress) {
+		console.log('Sync already in progress, skipping...');
+		return 0;
+	}
+
+	syncInProgress = true;
+	syncStatus.setSyncing(true);
+
+	try {
+		const pending = await getPendingLogs();
+		const logsToSync = pending.filter(shouldRetry);
+
+		if (logsToSync.length === 0) {
+			if (pending.length > 0) {
+				console.log(`${pending.length} pending logs still waiting for retry window`);
+			}
+			return 0;
+		}
+
+		console.log(`Syncing ${logsToSync.length} pending logs (${pending.length} total queued)...`);
+		let synced = 0;
+
+		for (const log of logsToSync) {
+			try {
+				// Retry posting the log
+				const res = await fetchWithAuth('/cigarettes/log', {
+					method: 'POST',
+					body: JSON.stringify(log.payload)
+				});
+
+				if (res.ok) {
+					await removePendingLog(log.id);
+					synced++;
+					console.log(`✓ Synced pending log ${log.id}`);
+				} else {
+					await updatePendingLogRetry(log.id, `HTTP ${res.status}`);
+					console.warn(`✗ Failed to sync log ${log.id}: HTTP ${res.status}`);
+				}
+			} catch (err) {
+				await updatePendingLogRetry(log.id, String(err));
+				console.warn(`✗ Error syncing log ${log.id}:`, err);
+			}
+		}
+
+		const total = pending.length;
+		const remaining = total - synced;
+		console.log(
+			`Sync complete: ${synced}/${logsToSync.length} succeeded. ${remaining} logs still queued.`
+		);
+
+		// Notify UI that sync completed
+		if (synced > 0) {
+			syncStatus.notifySyncComplete();
+		}
+
+		// Call callback if set (for UI updates)
+		setSyncCallback(null);
+
+		return synced;
+	} catch (err) {
+		console.error('Error during sync:', err);
+		return 0;
+	} finally {
+		syncInProgress = false;
+		syncStatus.setSyncing(false);
+	}
+}
+
+/**
+ * Get count of pending logs waiting to sync
+ */
+export async function getPendingSyncCount(): Promise<number> {
+	try {
+		const pending = await getPendingLogs();
+		return pending.length;
+	} catch {
+		return 0;
+	}
 }
