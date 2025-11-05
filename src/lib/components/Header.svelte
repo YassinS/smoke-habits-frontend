@@ -16,6 +16,11 @@
 		goto('/contexts');
 	}
 
+	function goToSettings() {
+		menuOpen = false;
+		goto('/settings');
+	}
+
 	function logout() {
 		clearAuth();
 		dispatch('logout');
@@ -57,6 +62,13 @@
 						<button class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-100 hover:bg-white/10" on:click={goToContexts}>
 							<span class="inline-flex h-2 w-2 rounded-full" style="background: linear-gradient(135deg, #34d399, #22d3ee);"></span>
 							Smoke contexts
+						</button>
+						<button class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-100 hover:bg-white/10" on:click={goToSettings}>
+							<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<circle cx="12" cy="12" r="3"></circle>
+								<path d="M12 1v6m0 6v6M4.22 4.22l4.24 4.24m5.08 5.08l4.24 4.24M1 12h6m6 0h6M4.22 19.78l4.24-4.24m5.08-5.08l4.24-4.24"></path>
+							</svg>
+							Settings
 						</button>
 						<button class="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-200 hover:bg-red-500/20" on:click={logout}>
 							Sign out
