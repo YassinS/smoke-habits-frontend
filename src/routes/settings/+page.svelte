@@ -18,7 +18,7 @@
 			}
 
 			const res = await fetch('/me/delete', {
-				method: 'GET',
+				method: 'DELETE',
 				headers: {
 					'Authorization': `Bearer ${tokens.accessToken}`
 				}
