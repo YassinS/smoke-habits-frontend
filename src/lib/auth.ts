@@ -58,8 +58,8 @@ export async function login(email: string, password: string) {
 	return body;
 }
 
-export async function register(email: string, password: string) {
-	const body = await apiRegister(email, password);
+export async function register(email: string, password: string, consent: boolean) {
+	const body = await apiRegister(email, password, consent);
 	setTokens(body.accessToken, body.refreshToken);
 	try {
 		await fetchMe();
