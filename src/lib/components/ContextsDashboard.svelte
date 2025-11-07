@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import Card from '$lib/components/Card.svelte';
 	import ColorPicker from '$lib/components/ColorPicker.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 	import type { SmokeContext, SmokeContextPayload } from '$lib/api';
 	import {
 		fetchSmokeContexts,
@@ -17,7 +18,8 @@
 	let form: SmokeContextPayload = { context: '', colorUI: '#34d399' };
 	let saving = false;
 	let deletingId: string | null = null;
-	let showDeleteConfirm: string | null = null;
+	let deleteModalOpen = false;
+	let contextToDelete: SmokeContext | null = null;
 
 	async function load() {
 		loading = true;
@@ -66,13 +68,24 @@
 		}
 	}
 
-	async function deleteContext(id: string) {
-		deletingId = id;
+	function openDeleteModal(ctx: SmokeContext) {
+		contextToDelete = ctx;
+		deleteModalOpen = true;
+	}
+
+	function closeDeleteModal() {
+		deleteModalOpen = false;
+		contextToDelete = null;
+	}
+
+	async function confirmDelete() {
+		if (!contextToDelete) return;
+		deletingId = contextToDelete.id;
 		error = null;
 		try {
-			await deleteSmokeContext(id);
-			contexts = contexts.filter((ctx) => ctx.id !== id);
-			showDeleteConfirm = null;
+			await deleteSmokeContext(contextToDelete.id);
+			contexts = contexts.filter((ctx) => ctx.id !== contextToDelete!.id);
+			closeDeleteModal();
 		} catch (err: any) {
 			error = err?.message ?? 'Unable to delete context';
 		} finally {
@@ -131,58 +144,63 @@
 	{:else}
 		<div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
 			{#each contexts as ctx}
-				<Card className="flex items-center justify-between gap-4 p-4">
-					<div class="flex items-center gap-3">
+				<Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+					<div class="flex min-w-0 items-center gap-3">
 						<span
-							class="h-10 w-10 rounded-full border border-white/10"
+							class="h-10 w-10 flex-shrink-0 rounded-full border border-white/10"
 							style={`background:${ctx.colorUI};`}
 						></span>
-						<div>
-							<div class="font-medium text-white">{ctx.context}</div>
-							<div class="text-xs text-gray-400">{ctx.id}</div>
+						<div class="min-w-0 flex-1">
+							<div class="truncate font-medium text-white">{ctx.context}</div>
+							<div class="truncate text-xs text-gray-400">{ctx.id}</div>
 						</div>
 					</div>
-					<div class="flex gap-2">
+					<div class="flex flex-shrink-0 gap-2">
 						<button
-							class="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs tracking-wide text-white uppercase hover:bg-white/15"
+							class="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs tracking-wide whitespace-nowrap text-white uppercase hover:bg-white/15"
 							on:click={() => startEdit(ctx)}
 						>
 							Edit
 						</button>
 						<button
-							class="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs tracking-wide text-red-300 uppercase hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-							on:click={() => (showDeleteConfirm = ctx.id)}
+							class="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs tracking-wide whitespace-nowrap text-red-300 uppercase hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+							on:click={() => openDeleteModal(ctx)}
 							disabled={deletingId === ctx.id}
 						>
 							Delete
 						</button>
 					</div>
 				</Card>
-
-				{#if showDeleteConfirm === ctx.id}
-					<Card className="border border-red-500/30 bg-red-500/10 p-4">
-						<p class="mb-3 text-sm text-red-200">
-							Are you sure you want to delete "{ctx.context}"?
-						</p>
-						<div class="flex gap-2">
-							<button
-								class="flex-1 rounded bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-								on:click={() => deleteContext(ctx.id)}
-								disabled={deletingId === ctx.id}
-							>
-								{deletingId === ctx.id ? 'Deleting...' : 'Delete'}
-							</button>
-							<button
-								class="flex-1 rounded border border-gray-600 bg-gray-900 px-3 py-2 text-xs font-semibold text-gray-200 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
-								on:click={() => (showDeleteConfirm = null)}
-								disabled={deletingId === ctx.id}
-							>
-								Cancel
-							</button>
-						</div>
-					</Card>
-				{/if}
 			{/each}
 		</div>
 	{/if}
 </div>
+
+<Modal open={deleteModalOpen} on:close={closeDeleteModal}>
+	<div class="space-y-4">
+		<div>
+			<p class="text-sm text-gray-300">
+				Are you sure you want to delete "<span class="font-semibold text-white"
+					>{contextToDelete?.context}</span
+				>"?
+			</p>
+			<p class="mt-2 text-xs text-gray-400">This action cannot be undone.</p>
+		</div>
+		<div class="flex gap-2">
+			<button
+				class="flex-1 rounded bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+				on:click={confirmDelete}
+				disabled={deletingId !== null}
+			>
+				{deletingId ? 'Deleting...' : 'Delete'}
+			</button>
+			<button
+				class="flex-1 rounded border border-gray-600 bg-gray-900 px-3 py-2 text-sm font-semibold text-gray-200 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+				on:click={closeDeleteModal}
+				disabled={deletingId !== null}
+			>
+				Cancel
+			</button>
+		</div>
+	</div>
+</Modal>
