@@ -1,9 +1,16 @@
 <script lang="ts">
 	import { createEventDispatcher, onMount } from 'svelte';
 	import ColorPicker from '$lib/components/ColorPicker.svelte';
-	import { apiPost, fetchSmokeContexts, createSmokeContext, getPendingSyncCount, syncPendingLogs } from '$lib/api';
+	import {
+		apiPost,
+		fetchSmokeContexts,
+		createSmokeContext,
+		getPendingSyncCount,
+		syncPendingLogs
+	} from '$lib/api';
 	import { isOnline } from '$lib/offline';
 	import type { SmokeContext } from '$lib/api';
+	import { validateContextLabel, validateHexColor, validateCravingLevel } from '$lib/validation';
 
 	const dispatch = createEventDispatcher();
 	const DEFAULT_COLOR = '#34d399';
@@ -111,14 +118,24 @@
 
 	async function ensureContext() {
 		if (!showNewContext) return selectedContextId || null;
-		if (!newContextName.trim()) {
-			throw new Error('Context name is required');
+
+		// Validate context label
+		const labelValidation = validateContextLabel(newContextName);
+		if (!labelValidation.valid) {
+			throw new Error(labelValidation.error || 'Invalid context name');
 		}
+
+		// Validate hex color
+		const colorValidation = validateHexColor(newContextColor);
+		if (!colorValidation.valid) {
+			throw new Error(colorValidation.error || 'Invalid color');
+		}
+
 		savingContext = true;
 		try {
 			const created = await createSmokeContext({
-				context: newContextName.trim(),
-				colorUI: newContextColor
+				context: labelValidation.sanitized || newContextName,
+				colorUI: colorValidation.sanitized || newContextColor
 			});
 			contexts = [...contexts, created];
 			selectedContextId = created.id;
@@ -135,9 +152,15 @@
 		loading = true;
 		error = null;
 		try {
+			// Validate craving level
+			const cravingValidation = validateCravingLevel(craving);
+			if (!cravingValidation.valid) {
+				throw new Error(cravingValidation.error || 'Invalid craving level');
+			}
+
 			const contextId = await ensureContext();
 			await apiPost('/cigarettes/log', {
-				cravingLevel: Number(craving),
+				cravingLevel: Number(cravingValidation.sanitized),
 				smokeContext: contextId ?? undefined
 			});
 			dispatch('logged');
@@ -152,18 +175,26 @@
 <div class="space-y-4 rounded bg-white/5 p-4">
 	<!-- Online/Offline & Pending Status -->
 	{#if !online}
-		<div class="flex items-center gap-2 rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-200">
-			<span class="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
+		<div
+			class="flex items-center gap-2 rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-200"
+		>
+			<span class="inline-block h-2 w-2 animate-pulse rounded-full bg-amber-500"></span>
 			You're offline. Logs will queue locally and sync automatically when back online.
 		</div>
 	{:else if pendingCount > 0}
-		<div class="flex items-center justify-between gap-2 rounded border border-blue-500/40 bg-blue-500/10 p-2">
+		<div
+			class="flex items-center justify-between gap-2 rounded border border-blue-500/40 bg-blue-500/10 p-2"
+		>
 			<div class="flex items-center gap-2 text-xs">
 				{#if syncing}
-					<span class="inline-block h-2 w-2 rounded-full bg-blue-400 animate-pulse"></span>
-					<span class="text-blue-200">Syncing {pendingCount} log{pendingCount === 1 ? '' : 's'}...</span>
+					<span class="inline-block h-2 w-2 animate-pulse rounded-full bg-blue-400"></span>
+					<span class="text-blue-200"
+						>Syncing {pendingCount} log{pendingCount === 1 ? '' : 's'}...</span
+					>
 				{:else}
-					<span class="text-blue-200">{pendingCount} log{pendingCount === 1 ? '' : 's'} waiting to sync</span>
+					<span class="text-blue-200"
+						>{pendingCount} log{pendingCount === 1 ? '' : 's'} waiting to sync</span
+					>
 					<button
 						type="button"
 						class="rounded bg-blue-600 px-2 py-1 text-xs font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"

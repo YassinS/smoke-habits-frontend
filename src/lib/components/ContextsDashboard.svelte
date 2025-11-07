@@ -10,6 +10,7 @@
 		updateSmokeContext,
 		deleteSmokeContext
 	} from '$lib/api';
+	import { validateContextLabel, validateHexColor } from '$lib/validation';
 
 	let contexts: SmokeContext[] = [];
 	let loading = true;
@@ -46,18 +47,33 @@
 	}
 
 	async function submit() {
-		if (!form.context.trim()) {
-			error = 'Context label required';
+		// Validate context label
+		const labelValidation = validateContextLabel(form.context);
+		if (!labelValidation.valid) {
+			error = labelValidation.error || 'Invalid context label';
 			return;
 		}
+
+		// Validate hex color
+		const colorValidation = validateHexColor(form.colorUI);
+		if (!colorValidation.valid) {
+			error = colorValidation.error || 'Invalid color';
+			return;
+		}
+
 		saving = true;
 		error = null;
 		try {
+			const sanitizedPayload: SmokeContextPayload = {
+				context: labelValidation.sanitized || form.context,
+				colorUI: colorValidation.sanitized || form.colorUI
+			};
+
 			if (editingId) {
-				const updated = await updateSmokeContext(editingId, form);
+				const updated = await updateSmokeContext(editingId, sanitizedPayload);
 				contexts = contexts.map((ctx) => (ctx.id === editingId ? updated : ctx));
 			} else {
-				const created = await createSmokeContext(form);
+				const created = await createSmokeContext(sanitizedPayload);
 				contexts = [...contexts, created];
 			}
 			startCreate();

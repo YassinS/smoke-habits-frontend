@@ -7,6 +7,16 @@ type RequestInitLike = RequestInit | undefined;
 
 import { setTokens, clearAuth, getTokens } from '$lib/auth';
 import {
+	validateEmail,
+	validatePassword,
+	validateContextLabel,
+	validateHexColor,
+	validateCravingLevel,
+	validateUUID,
+	validateRefreshToken,
+	validateConsent
+} from '$lib/validation';
+import {
 	initOfflineDB,
 	queuePendingLog,
 	getPendingLogs,
@@ -95,20 +105,36 @@ export async function fetchWithAuth(input: string, init?: RequestInitLike): Prom
 }
 
 export async function login(email: string, password: string) {
+	// Validate inputs
+	const emailValidation = validateEmail(email);
+	if (!emailValidation.valid) throw new Error(emailValidation.error);
+
+	if (!password) throw new Error('Password is required');
+
 	const res = await fetch(`${API_BASE}/auth/login`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ email, password })
+		body: JSON.stringify({ email: emailValidation.sanitized, password })
 	});
 	if (!res.ok) throw new Error('Login failed');
 	return res.json();
 }
 
 export async function register(email: string, password: string, consent: boolean) {
+	// Validate inputs
+	const emailValidation = validateEmail(email);
+	if (!emailValidation.valid) throw new Error(emailValidation.error);
+
+	const passwordValidation = validatePassword(password);
+	if (!passwordValidation.valid) throw new Error(passwordValidation.error);
+
+	const consentValidation = validateConsent(consent);
+	if (!consentValidation.valid) throw new Error(consentValidation.error);
+
 	const res = await fetch(`${API_BASE}/auth/register`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ email, password, consent })
+		body: JSON.stringify({ email: emailValidation.sanitized, password, consent })
 	});
 	if (!res.ok) throw new Error('Register failed');
 	return res.json();
@@ -139,6 +165,16 @@ export async function apiGet(path: string) {
 
 export async function apiPost(path: string, body: unknown) {
 	try {
+		// Validate body is not null/undefined
+		if (body === null || body === undefined) {
+			throw new Error('Request body cannot be empty');
+		}
+
+		// Validate it's a plain object
+		if (typeof body !== 'object' || Array.isArray(body)) {
+			throw new Error('Invalid request body');
+		}
+
 		const res = await fetchWithAuth(path, { method: 'POST', body: JSON.stringify(body) });
 		if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
 		return res.json();
@@ -209,8 +245,20 @@ export async function fetchSmokeContexts(): Promise<SmokeContext[]> {
 }
 
 export async function createSmokeContext(payload: SmokeContextPayload): Promise<SmokeContext> {
-	const created = await apiPost('/context', payload);
-	const mapped = mapSmokeContext(created, payload.context);
+	// Validate inputs
+	const labelValidation = validateContextLabel(payload.context);
+	if (!labelValidation.valid) throw new Error(labelValidation.error);
+
+	const colorValidation = validateHexColor(payload.colorUI);
+	if (!colorValidation.valid) throw new Error(colorValidation.error);
+
+	const validatedPayload: SmokeContextPayload = {
+		context: labelValidation.sanitized || payload.context,
+		colorUI: colorValidation.sanitized || payload.colorUI
+	};
+
+	const created = await apiPost('/context', validatedPayload);
+	const mapped = mapSmokeContext(created, validatedPayload.context);
 	if (!mapped) {
 		throw new Error('Invalid smoke context response');
 	}
@@ -221,8 +269,24 @@ export async function updateSmokeContext(
 	id: string,
 	payload: SmokeContextPayload
 ): Promise<SmokeContext> {
-	const updated = await apiPost(`/context/${id}/edit`, payload);
-	const mapped = mapSmokeContext(updated, id);
+	// Validate ID
+	const idValidation = validateUUID(id);
+	if (!idValidation.valid) throw new Error(idValidation.error);
+
+	// Validate inputs
+	const labelValidation = validateContextLabel(payload.context);
+	if (!labelValidation.valid) throw new Error(labelValidation.error);
+
+	const colorValidation = validateHexColor(payload.colorUI);
+	if (!colorValidation.valid) throw new Error(colorValidation.error);
+
+	const validatedPayload: SmokeContextPayload = {
+		context: labelValidation.sanitized || payload.context,
+		colorUI: colorValidation.sanitized || payload.colorUI
+	};
+
+	const updated = await apiPost(`/context/${idValidation.sanitized}/edit`, validatedPayload);
+	const mapped = mapSmokeContext(updated, idValidation.sanitized);
 	if (!mapped) {
 		throw new Error('Invalid smoke context response');
 	}
@@ -230,8 +294,12 @@ export async function updateSmokeContext(
 }
 
 export async function deleteSmokeContext(id: string): Promise<void> {
-	const res = await fetchWithAuth(`/context/${id}`, { method: 'DELETE' });
-	if (!res.ok) throw new Error(`DELETE /context/${id} failed: ${res.status}`);
+	// Validate ID
+	const idValidation = validateUUID(id);
+	if (!idValidation.valid) throw new Error(idValidation.error);
+
+	const res = await fetchWithAuth(`/context/${idValidation.sanitized}`, { method: 'DELETE' });
+	if (!res.ok) throw new Error(`DELETE /context/${idValidation.sanitized} failed: ${res.status}`);
 }
 
 function mapCigaretteLog(entry: unknown, index: number): CigaretteLog | null {
