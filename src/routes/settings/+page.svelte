@@ -24,7 +24,7 @@
 				throw new Error('Not authenticated');
 			}
 
-			const res = await fetch('/me/delete', {
+			const res = await fetch('/me', {
 				method: 'DELETE',
 				headers: {
 					Authorization: `Bearer ${tokens.accessToken}`

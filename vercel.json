@@ -9,8 +9,8 @@
 			"destination": "https://api.smoke-habits.yassinsassi.com/context"
 		},
 		{
-			"source": "/context/(.*)",
-			"destination": "https://api.smoke-habits.yassinsassi.com/context/$1"
+			"source": "/context/:path*",
+			"destination": "https://api.smoke-habits.yassinsassi.com/context/:path*"
 		},
 		{
 			"source": "/cigarettes",
@@ -29,7 +29,7 @@
 			"destination": "https://api.smoke-habits.yassinsassi.com/me"
 		},
 		{
-			"source": "/me/:path",
+			"source": "/me/:path*",
 			"destination": "https://api.smoke-habits.yassinsassi.com/me/:path*"
 		}
 	]

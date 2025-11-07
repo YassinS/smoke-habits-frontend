@@ -229,6 +229,11 @@ export async function updateSmokeContext(
 	return mapped;
 }
 
+export async function deleteSmokeContext(id: string): Promise<void> {
+	const res = await fetchWithAuth(`/context/${id}`, { method: 'DELETE' });
+	if (!res.ok) throw new Error(`DELETE /context/${id} failed: ${res.status}`);
+}
+
 function mapCigaretteLog(entry: unknown, index: number): CigaretteLog | null {
 	if (typeof entry !== 'object' || entry === null) return null;
 	const record = entry as Record<string, unknown>;
