@@ -373,6 +373,86 @@ export async function fetchContextAnalytics(): Promise<ContextAnalytics[]> {
 		.filter((item): item is ContextAnalytics => item !== null);
 }
 
+export interface AllAnalyticsData {
+	weekly: unknown[];
+	monthly: unknown[];
+	daily: unknown[];
+	avgCraving: number | null;
+	longestStreak: number | null;
+	contextAnalytics: ContextAnalytics[];
+}
+
+/**
+ * Fetch all analytics data at once
+ * This should be called after logging a cigarette to refresh the UI
+ */
+export async function fetchAllAnalytics(): Promise<AllAnalyticsData> {
+	try {
+		const [weeklyData, monthlyData, dailyData, avgData, streakData, contextData] =
+			await Promise.all([
+				apiGet('/analytics/weekly'),
+				apiGet('/analytics/monthly'),
+				apiGet('/analytics/daily'),
+				apiGet('/analytics/avg-craving'),
+				apiGet('/analytics/longest-streak'),
+				fetchContextAnalytics()
+			]);
+
+		return {
+			weekly: Array.isArray(weeklyData) ? weeklyData : [],
+			monthly: Array.isArray(monthlyData) ? monthlyData : [],
+			daily: Array.isArray(dailyData) ? dailyData : [],
+			avgCraving: typeof avgData === 'number' && Number.isFinite(avgData) ? avgData : null,
+			longestStreak:
+				typeof streakData === 'number' && Number.isFinite(streakData) ? streakData : null,
+			contextAnalytics: Array.isArray(contextData) ? contextData : []
+		};
+	} catch (err) {
+		console.error('Failed to fetch all analytics:', err);
+		throw err;
+	}
+}
+
+/**
+ * Refetch weekly analytics
+ */
+export async function refetchWeeklyAnalytics(): Promise<unknown[]> {
+	const data = await apiGet('/analytics/weekly');
+	return Array.isArray(data) ? data : [];
+}
+
+/**
+ * Refetch monthly analytics
+ */
+export async function refetchMonthlyAnalytics(): Promise<unknown[]> {
+	const data = await apiGet('/analytics/monthly');
+	return Array.isArray(data) ? data : [];
+}
+
+/**
+ * Refetch daily analytics
+ */
+export async function refetchDailyAnalytics(): Promise<unknown[]> {
+	const data = await apiGet('/analytics/daily');
+	return Array.isArray(data) ? data : [];
+}
+
+/**
+ * Refetch average craving
+ */
+export async function refetchAvgCraving(): Promise<number | null> {
+	const data = await apiGet('/analytics/avg-craving');
+	return typeof data === 'number' && Number.isFinite(data) ? data : null;
+}
+
+/**
+ * Refetch longest streak
+ */
+export async function refetchLongestStreak(): Promise<number | null> {
+	const data = await apiGet('/analytics/longest-streak');
+	return typeof data === 'number' && Number.isFinite(data) ? data : null;
+}
+
 /**
  * Calculate exponential backoff delay (in ms)
  * After N retries: 1s, 2s, 4s, 8s, 16s, 30s (capped)

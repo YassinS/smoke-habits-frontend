@@ -15,14 +15,16 @@
 	let loading = false;
 	let error: string | null = null;
 	let tab: 'today' | 'insights' = 'today';
+	let analyticsComponent: Analytics | undefined;
 
 	async function loadCigs() {
 		loading = true;
 		error = null;
 		try {
 			cigarettes = await fetchCigaretteLogs();
-		} catch (e: any) {
-			error = e?.message ?? String(e);
+		} catch (e: unknown) {
+			const errorMessage = e instanceof Error ? e.message : String(e);
+			error = errorMessage ?? 'Failed to load cigarettes';
 		} finally {
 			loading = false;
 		}
@@ -54,11 +56,15 @@
 
 	function onLogged() {
 		loadCigs();
+		// Trigger analytics refetch after logging
+		if (analyticsComponent) {
+			void analyticsComponent.refetchAnalytics();
+		}
 	}
 
 	// Watch for sync completion and refetch cigarettes
 	$: if ($syncStatus.lastSyncTime) {
-		loadCigs();
+		void loadCigs();
 	}
 </script>
 
@@ -80,12 +86,16 @@
 
 		<section class="mt-2">
 			<div class="flex items-center gap-2">
-				<button class="rounded-full px-4 py-1.5 text-sm font-medium text-white bg-white/10 hover:bg-white/15"
+				<button
+					class="rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium text-white hover:bg-white/15"
 					class:selected={tab === 'today'}
-					on:click={() => (tab = 'today')}>Today</button>
-				<button class="rounded-full px-4 py-1.5 text-sm font-medium text-white bg-white/10 hover:bg-white/15"
+					on:click={() => (tab = 'today')}>Today</button
+				>
+				<button
+					class="rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium text-white hover:bg-white/15"
 					class:selected={tab === 'insights'}
-					on:click={() => (tab = 'insights')}>Insights</button>
+					on:click={() => (tab = 'insights')}>Insights</button
+				>
 			</div>
 
 			<div class="mt-4">
@@ -96,7 +106,7 @@
 				{:else if tab === 'today'}
 					<DailyTimeline {cigarettes} />
 				{:else}
-					<Analytics {cigarettes} />
+					<Analytics bind:this={analyticsComponent} {cigarettes} />
 				{/if}
 			</div>
 		</section>
