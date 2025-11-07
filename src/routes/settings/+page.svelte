@@ -6,6 +6,13 @@
 	let deleting = false;
 	let error: string | null = null;
 	let showConfirmation = false;
+	let authed = !!getTokens();
+
+	import { onMount } from 'svelte';
+
+	onMount(() => {
+		if (!authed) goto('/');
+	});
 
 	async function deleteAccount() {
 		deleting = true;
@@ -20,7 +27,7 @@
 			const res = await fetch('/me/delete', {
 				method: 'DELETE',
 				headers: {
-					'Authorization': `Bearer ${tokens.accessToken}`
+					Authorization: `Bearer ${tokens.accessToken}`
 				}
 			});
 
@@ -39,12 +46,26 @@
 	}
 </script>
 
-<Header />
+<Header on:logout={() => goto('/')} />
 
-<main class="mx-auto max-w-2xl px-4 py-8">
-	<h1 class="mb-6 text-3xl font-bold">Settings</h1>
+<main class="container mx-auto space-y-6 p-6 text-white">
+	<button
+		type="button"
+		class="inline-flex items-center gap-2 text-sm text-gray-300 transition hover:text-white"
+		on:click={() => goto('/')}
+	>
+		<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+			<path
+				fill-rule="evenodd"
+				d="M12.78 4.22a.75.75 0 010 1.06L8.56 9.5H16a.75.75 0 010 1.5H8.56l4.22 4.22a.75.75 0 01-1.06 1.06l-5.5-5.5a.75.75 0 010-1.06l5.5-5.5a.75.75 0 011.06 0z"
+				clip-rule="evenodd"
+			/>
+		</svg>
+		<span>Back to dashboard</span>
+	</button>
 
-	<div class="space-y-6">
+	<h1 class="text-3xl font-bold">Settings</h1>
+	<div class="mx-auto max-w-2xl space-y-6">
 		<!-- Account Deletion Section -->
 		<div class="rounded border border-red-500/20 bg-red-500/10 p-6">
 			<h2 class="mb-2 text-lg font-semibold text-red-300">Danger Zone</h2>
@@ -71,8 +92,8 @@
 				<div class="space-y-3 rounded border border-red-500/40 bg-red-950/30 p-4">
 					<p class="font-semibold text-red-200">Are you absolutely sure?</p>
 					<p class="text-sm text-gray-300">
-						This will permanently delete your account and <strong>all your data</strong>. This action
-						cannot be reversed.
+						This will permanently delete your account and <strong>all your data</strong>. This
+						action cannot be reversed.
 					</p>
 					<div class="flex gap-2">
 						<button
