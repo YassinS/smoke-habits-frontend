@@ -10,14 +10,6 @@
 
 	type TrendDirection = 'UP' | 'DOWN' | 'NEUTRAL' | null | undefined;
 
-	interface WeeklyStat {
-		weekLabel?: string;
-		totalCigarettes?: number;
-		avgCraving?: number | null;
-		trendCount?: 'UP' | 'DOWN' | 'NEUTRAL';
-		trendCraving?: 'UP' | 'DOWN' | 'NEUTRAL';
-	}
-
 	let weekly: Array<Record<string, unknown>> = [];
 	let monthly: Array<Record<string, unknown>> = [];
 	let daily: Array<Record<string, unknown>> = [];
@@ -84,6 +76,13 @@
 			(record.day as string | undefined) ??
 			null;
 		if (!raw) return `Day ${index + 1}`;
+
+		// Handle ISO week format (YYYY-WW)
+		if (/^\d{4}-\d{2}$/.test(raw) && record.weekLabel) {
+			const week = raw.split('-')[1];
+			return `W${week}`;
+		}
+
 		const parsed = parseApiDate(raw);
 		if (parsed) {
 			const options: Intl.DateTimeFormatOptions = { timeZone: userTimeZone };
@@ -106,57 +105,17 @@
 		return raw;
 	}
 
-	function startOfDay(d: Date): Date {
-		const newDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
-		return newDate;
-	}
-
-	function deriveWeeklyFromLocal() {
-		if (!cigarettes?.length) return [] as Array<{ totalCigarettes: number; weekLabel: string }>;
-		const today = startOfDay(new Date());
-		const days = Array.from({ length: 7 }, (_, i) => {
-			const day = new Date(
-				today.getFullYear(),
-				today.getMonth(),
-				today.getDate() - (6 - i),
-				0,
-				0,
-				0,
-				0
-			);
-			return day;
-		});
-		return days.map((day) => {
-			const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1, 0, 0, 0, 0);
-			const count = cigarettes.filter((c) => {
-				const ts = new Date(c.timestamp);
-				return ts >= day && ts < next;
-			}).length;
-			return {
-				totalCigarettes: count,
-				weekLabel: day.toLocaleDateString([], { weekday: 'short', timeZone: userTimeZone })
-			} satisfies WeeklyStat;
-		});
-	}
-
 	function safeNumber(value: unknown): number {
 		const n = Number(value);
 		return Number.isFinite(n) ? n : 0;
 	}
 
-	$: fallbackWeekly = deriveWeeklyFromLocal();
-	$: displayWeekly = weekly.length ? weekly : fallbackWeekly;
 	function toEpoch(day: unknown): number {
 		const dayStr = typeof day === 'string' ? day : undefined;
 		const parsed = parseApiDate(dayStr);
 		return parsed ? parsed.getTime() : 0;
 	}
 
-	function computeWeeklyMax(data: Array<Record<string, unknown>>): number {
-		return Math.max(1, ...data.map((item) => totalFor(item)));
-	}
-
-	$: weeklyMax = computeWeeklyMax(displayWeekly as Array<Record<string, unknown>>);
 	$: latestDaily = daily.length
 		? [...daily]
 				.sort(
@@ -212,33 +171,56 @@
 
 <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
 	<Card className="p-4">
-		<h3 class="font-semibold">Avg craving</h3>
-		<div class="mt-2 text-3xl">
-			{loading || avgCraving === null ? '...' : safeNumber(avgCraving).toFixed(2)}
+		<div class="flex items-center justify-between">
+			<h3 class="font-semibold">Current moving average craving</h3>
+			{#if !loading && weekly.length}
+				{@const trend = extractTrendCraving(weekly[weekly.length - 1])}
+				{#if trend === 'UP'}
+					<span class="text-red-400" title="Trending up">↗</span>
+				{:else if trend === 'DOWN'}
+					<span class="text-green-400" title="Trending down">↘</span>
+				{:else if trend === 'NEUTRAL'}
+					<span class="text-gray-400" title="Stable">→</span>
+				{/if}
+			{/if}
 		</div>
-		{#if !loading && weekly.length}
-			<div class="mt-3 text-xs text-gray-300">
-				Last week: {trendLabel(extractTrendCraving(weekly[weekly.length - 1]))} craving trend
-			</div>
-		{/if}
+		<div class="mt-2 text-3xl">
+			{#if loading}
+				...
+			{:else if !latestDaily.length}
+				{avgCraving === null ? '–' : safeNumber(avgCraving).toFixed(2)}
+			{:else}
+				{safeNumber(
+					(latestDaily[latestDaily.length - 1] as Record<string, unknown>)?.movingAvgCraving ??
+						avgCraving
+				).toFixed(2)}
+			{/if}
+		</div>
 	</Card>
 
 	<Card className="p-4">
-		<h3 class="font-semibold">Longest streak</h3>
+		<div class="flex items-center justify-between">
+			<h3 class="font-semibold">Longest streak</h3>
+			{#if !loading && weekly.length}
+				{@const trend = extractTrendCount(weekly[weekly.length - 1])}
+				{#if trend === 'UP'}
+					<span class="text-red-400" title="Trending up">↗</span>
+				{:else if trend === 'DOWN'}
+					<span class="text-green-400" title="Trending down">↘</span>
+				{:else if trend === 'NEUTRAL'}
+					<span class="text-gray-400" title="Stable">→</span>
+				{/if}
+			{/if}
+		</div>
 		<div class="mt-2 text-3xl">
 			{loading || longestStreak === null
 				? '...'
 				: `${longestStreak} day${longestStreak === 1 ? '' : 's'}`}
 		</div>
-		{#if !loading && weekly.length}
-			<div class="mt-3 text-xs text-gray-300">
-				Count trend: {trendLabel(extractTrendCount(weekly[weekly.length - 1]))}
-			</div>
-		{/if}
 	</Card>
 
 	<Card className="p-4">
-		<h3 class="font-semibold">Latest daily avg</h3>
+		<h3 class="font-semibold">Latest daily average craving</h3>
 		<div class="mt-2 text-3xl">
 			{#if loading}
 				...
@@ -252,9 +234,7 @@
 		</div>
 		{#if !loading && latestDaily.length}
 			<div class="mt-3 text-xs text-gray-300">
-				7-day moving avg {safeNumber(
-					(latestDaily[latestDaily.length - 1] as Record<string, unknown>)?.movingAvgCraving
-				).toFixed(2)}
+				Overall average craving {avgCraving === null ? '–' : safeNumber(avgCraving).toFixed(2)}
 			</div>
 		{/if}
 	</Card>
@@ -265,24 +245,79 @@
 			<div>Loading...</div>
 		{:else if error}
 			<div class="mt-2 text-sm text-red-300">{error}</div>
-		{:else if !displayWeekly.length}
+		{:else if !weekly.length}
 			<div class="mt-2 text-sm text-gray-300">
 				No weekly data yet. Log cigarettes to populate insights.
 			</div>
 		{:else}
-			<div class="mt-4 flex h-32 w-full items-end gap-2">
-				{#each displayWeekly as w, i (i)}
-					<div class="flex-1 text-center">
-						<div
-							class="rounded-t bg-emerald-400/80"
-							style="height: {Math.max(6, (totalFor(w) / weeklyMax) * 100)}%"
-						></div>
-						<div class="mt-2 text-xs text-gray-300">{labelFor(w, i)}</div>
-						{#if extractTrendCount(w)}
-							<div class="text-[11px] text-gray-400">{trendLabel(extractTrendCount(w))}</div>
-						{/if}
+			{@const lastFourWeeks = weekly.slice(-4)}
+			{@const maxCount = Math.max(1, ...lastFourWeeks.map((item) => totalFor(item)))}
+			{@const totalCigs = lastFourWeeks.reduce((sum, w) => sum + totalFor(w), 0)}
+			{@const avgPerWeek = (totalCigs / lastFourWeeks.length).toFixed(1)}
+			{@const lastWeek = lastFourWeeks[lastFourWeeks.length - 1]}
+			{@const lastWeekCount = totalFor(lastWeek)}
+			{@const trendWeek = extractTrendCount(lastWeek)}
+			<div class="mt-4 space-y-4">
+				<div class="flex h-48 w-full items-end justify-center gap-2">
+					{#each lastFourWeeks as w, i (i)}
+						{@const count = totalFor(w)}
+						{@const heightPx = Math.max(24, (count / maxCount) * 192)}
+						<div class="flex flex-1 flex-col items-center gap-2">
+							<div class="relative flex w-full flex-col justify-end" style="height: 192px;">
+								<div
+									class="relative w-full rounded-t bg-linear-to-t from-emerald-500 to-emerald-400 transition-all hover:from-emerald-400 hover:to-emerald-300"
+									style="height: {heightPx}px;"
+								>
+									<div class="absolute inset-0 flex items-center justify-center">
+										<span class="text-xs font-bold text-white drop-shadow-lg">{count}</span>
+									</div>
+								</div>
+							</div>
+							<div class="text-center">
+								<div class="text-xs text-gray-300">{labelFor(w, i)}</div>
+								{#if extractTrendCount(w)}
+									{@const trend = extractTrendCount(w)}
+									<div class="text-[10px]">
+										{#if trend === 'UP'}
+											<span class="text-red-400" title="Up">↗</span>
+										{:else if trend === 'DOWN'}
+											<span class="text-green-400" title="Down">↘</span>
+										{:else}
+											<span class="text-gray-400" title="Stable">→</span>
+										{/if}
+									</div>
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+				<div class="grid grid-cols-2 gap-2 text-xs text-gray-400 sm:grid-cols-4">
+					<div class="rounded border border-white/10 bg-white/5 p-2">
+						<div class="text-gray-500">Total</div>
+						<div class="text-sm font-semibold text-white">{totalCigs}</div>
 					</div>
-				{/each}
+					<div class="rounded border border-white/10 bg-white/5 p-2">
+						<div class="text-gray-500">Avg/week</div>
+						<div class="text-sm font-semibold text-white">{avgPerWeek}</div>
+					</div>
+					<div class="rounded border border-white/10 bg-white/5 p-2">
+						<div class="text-gray-500">Last week</div>
+						<div class="text-sm font-semibold text-white">{lastWeekCount}</div>
+					</div>
+					<div class="rounded border border-white/10 bg-white/5 p-2">
+						<div class="text-gray-500">Trend</div>
+						<div class="flex items-center gap-1 text-sm font-semibold">
+							{#if trendWeek === 'UP'}
+								<span class="text-red-400" title="Trending up">↗</span>
+							{:else if trendWeek === 'DOWN'}
+								<span class="text-green-400" title="Trending down">↘</span>
+							{:else if trendWeek === 'NEUTRAL'}
+								<span class="text-gray-400" title="Stable">→</span>
+							{/if}
+							<span class="text-white">{trendLabel(trendWeek)}</span>
+						</div>
+					</div>
+				</div>
 			</div>
 		{/if}
 	</Card>
@@ -298,13 +333,22 @@
 		{:else}
 			<div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
 				{#each monthly as m, i (i)}
+					{@const trend = extractTrendCount(m)}
 					<div class="rounded border border-white/10 bg-white/5 p-3 text-left">
-						<div class="text-sm font-medium text-white">{labelFor(m, 0)}</div>
+						<div class="flex items-center justify-between">
+							<div class="text-sm font-medium text-white">{labelFor(m, 0)}</div>
+							{#if trend === 'UP'}
+								<span class="text-red-400" title="Trending up">↗</span>
+							{:else if trend === 'DOWN'}
+								<span class="text-green-400" title="Trending down">↘</span>
+							{:else if trend === 'NEUTRAL'}
+								<span class="text-gray-400" title="Stable">→</span>
+							{/if}
+						</div>
 						<div class="mt-1 text-lg font-semibold text-emerald-200">{totalFor(m)}</div>
 						<div class="text-xs text-gray-300">
 							avg craving {safeNumber((m as Record<string, unknown>).avgCraving).toFixed(2)}
 						</div>
-						<div class="text-[11px] text-gray-500">Trend {trendLabel(extractTrendCount(m))}</div>
 					</div>
 				{/each}
 			</div>
@@ -322,8 +366,18 @@
 		{:else}
 			<div class="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
 				{#each latestDaily as dayStat, i (i)}
+					{@const trend = extractTrendCount(dayStat)}
 					<div class="rounded border border-white/10 bg-white/5 p-3">
-						<div class="text-sm font-semibold text-white">{labelFor(dayStat, 0)}</div>
+						<div class="flex items-center justify-between">
+							<div class="text-sm font-semibold text-white">{labelFor(dayStat, 0)}</div>
+							{#if trend === 'UP'}
+								<span class="text-red-400" title="Trending up">↗</span>
+							{:else if trend === 'DOWN'}
+								<span class="text-green-400" title="Trending down">↘</span>
+							{:else if trend === 'NEUTRAL'}
+								<span class="text-gray-400" title="Stable">→</span>
+							{/if}
+						</div>
 						<div class="mt-1 flex justify-between text-sm text-gray-300">
 							<span>Count</span>
 							<span>{totalFor(dayStat)}</span>
@@ -333,10 +387,6 @@
 							<span
 								>{safeNumber((dayStat as Record<string, unknown>).movingAvgCount).toFixed(1)}</span
 							>
-						</div>
-						<div class="flex justify-between text-sm text-gray-300">
-							<span>Trend</span>
-							<span>{trendLabel(extractTrendCount(dayStat))}</span>
 						</div>
 					</div>
 				{/each}

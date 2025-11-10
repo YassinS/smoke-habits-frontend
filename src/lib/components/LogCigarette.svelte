@@ -15,7 +15,8 @@
 	const dispatch = createEventDispatcher();
 	const DEFAULT_COLOR = '#34d399';
 
-	let craving = 3;
+	let craving: number | null = null;
+	let cravingTouched = false;
 	let loading = false;
 	let error: string | null = null;
 	let contexts: SmokeContext[] = [];
@@ -32,9 +33,7 @@
 		try {
 			const list = await fetchSmokeContexts();
 			contexts = list;
-			if (!showNewContext && !selectedContextId && contexts.length) {
-				selectedContextId = contexts[0].id;
-			}
+			// Don't auto-select first context - keep "No Context" as default
 		} catch (e) {
 			console.error(e);
 			contexts = [];
@@ -152,6 +151,11 @@
 		loading = true;
 		error = null;
 		try {
+			// Require craving level to be selected
+			if (!cravingTouched || craving === null) {
+				throw new Error('Please select a craving level');
+			}
+
 			// Validate craving level
 			const cravingValidation = validateCravingLevel(craving);
 			if (!cravingValidation.valid) {
@@ -163,6 +167,13 @@
 				cravingLevel: Number(cravingValidation.sanitized),
 				smokeContext: contextId ?? undefined
 			});
+
+			// Reset form after successful log
+			craving = null;
+			cravingTouched = false;
+			selectedContextId = '';
+			error = null;
+
 			dispatch('logged');
 		} catch (e: any) {
 			error = e?.message ?? String(e);
@@ -210,9 +221,22 @@
 
 	<div class="flex items-center gap-3">
 		<label class="text-sm" for="craveRange">Craving</label>
-		<input id="craveRange" type="range" min="1" max="10" bind:value={craving} />
-		<div class="w-8 text-center">{craving}</div>
+		<input
+			id="craveRange"
+			type="range"
+			min="1"
+			max="10"
+			value={craving ?? 5}
+			on:input={(e) => {
+				cravingTouched = true;
+				craving = Number(e.currentTarget.value);
+			}}
+		/>
+		<div class="w-8 text-center">{cravingTouched ? craving : '–'}</div>
 	</div>
+	{#if !cravingTouched}
+		<div class="text-xs text-amber-300">Please select a craving level using the slider above</div>
+	{/if}
 
 	<div class="space-y-3">
 		<div class="flex items-center justify-between">
@@ -291,7 +315,7 @@
 	<button
 		class="w-full rounded bg-green-600 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
 		on:click={logIt}
-		disabled={loading || savingContext}
+		disabled={loading || savingContext || !cravingTouched}
 	>
 		{loading ? 'Logging…' : 'Log cigarette'}
 	</button>
