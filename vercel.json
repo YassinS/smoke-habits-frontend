@@ -2,35 +2,35 @@
 	"rewrites": [
 		{
 			"source": "/auth/:path*",
-			"destination": "https://api.smoke-habits.yassinsassi.com/auth/:path*"
+			"destination": "http://api.smokehabit.com/auth/:path*"
 		},
 		{
 			"source": "/context",
-			"destination": "https://api.smoke-habits.yassinsassi.com/context"
+			"destination": "http://api.smokehabit.com/context"
 		},
 		{
 			"source": "/context/:path*",
-			"destination": "https://api.smoke-habits.yassinsassi.com/context/:path*"
+			"destination": "http://api.smokehabit.com/context/:path*"
 		},
 		{
 			"source": "/cigarettes",
-			"destination": "https://api.smoke-habits.yassinsassi.com/cigarettes"
+			"destination": "http://api.smokehabit.com/cigarettes"
 		},
 		{
 			"source": "/cigarettes/:path*",
-			"destination": "https://api.smoke-habits.yassinsassi.com/cigarettes/:path*"
+			"destination": "http://api.smokehabit.com/cigarettes/:path*"
 		},
 		{
 			"source": "/analytics/:path*",
-			"destination": "https://api.smoke-habits.yassinsassi.com/analytics/:path*"
+			"destination": "http://api.smokehabit.com/analytics/:path*"
 		},
 		{
 			"source": "/me",
-			"destination": "https://api.smoke-habits.yassinsassi.com/me"
+			"destination": "http://api.smokehabit.com/me"
 		},
 		{
 			"source": "/me/:path*",
-			"destination": "https://api.smoke-habits.yassinsassi.com/me/:path*"
+			"destination": "http://api.smokehabit.com/me/:path*"
 		}
 	]
 }
