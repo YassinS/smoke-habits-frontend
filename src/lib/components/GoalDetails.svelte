@@ -25,6 +25,39 @@
 		loadGoals();
 	});
 
+	
+function parseErrorMessage(err: unknown): string {
+	if (!err) return 'An error occurred';
+	
+	// If it's an Error object
+	if (err instanceof Error) {
+		try {
+			// Try to parse the message as JSON
+			const parsed = JSON.parse(err.message);
+			if (parsed && typeof parsed.message === 'string') {
+				return parsed.message;
+			}
+		} catch {
+			// If not JSON, return the message as-is
+			return err.message;
+		}
+	}
+	
+	// If it's a string, try to parse as JSON
+	if (typeof err === 'string') {
+		try {
+			const parsed = JSON.parse(err);
+			if (parsed && typeof parsed.message === 'string') {
+				return parsed.message;
+			}
+		} catch {
+			return err;
+		}
+	}
+	
+	return String(err);
+}
+
 	async function loadGoals() {
 		loading = true;
 		error = '';
@@ -42,8 +75,7 @@
 			
 			allGoals = all;
 		} catch (err) {
-			const errorMessage = err instanceof Error ? err.message : String(err);
-			error = errorMessage || 'Failed to load goals';
+			error = parseErrorMessage(err) || 'Failed to load goals';
 		} finally {
 			loading = false;
 		}
@@ -57,8 +89,7 @@
 			await loadGoals();
 			dispatch('updated');
 		} catch (err) {
-			const errorMessage = err instanceof Error ? err.message : String(err);
-			error = errorMessage || 'Failed to update goal status';
+			error = parseErrorMessage(err) || 'Failed to update goal status';
 		} finally {
 			updating = false;
 		}

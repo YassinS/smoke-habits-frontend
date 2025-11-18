@@ -30,6 +30,39 @@
 		loadingStrategies = false;
 	});
 
+	
+function parseErrorMessage(err: unknown): string {
+	if (!err) return 'An error occurred';
+	
+	// If it's an Error object
+	if (err instanceof Error) {
+		try {
+			// Try to parse the message as JSON
+			const parsed = JSON.parse(err.message);
+			if (parsed && typeof parsed.message === 'string') {
+				return parsed.message;
+			}
+		} catch {
+			// If not JSON, return the message as-is
+			return err.message;
+		}
+	}
+	
+	// If it's a string, try to parse as JSON
+	if (typeof err === 'string') {
+		try {
+			const parsed = JSON.parse(err);
+			if (parsed && typeof parsed.message === 'string') {
+				return parsed.message;
+			}
+		} catch {
+			return err;
+		}
+	}
+	
+	return String(err);
+}
+
 	async function handleSubmit() {
 		error = '';
 		loading = true;
@@ -45,8 +78,7 @@
 			dispatch('created');
 			close();
 		} catch (err) {
-			const errorMessage = err instanceof Error ? err.message : String(err);
-			error = errorMessage || 'Failed to create reduction goal';
+			error = parseErrorMessage(err) || 'Failed to create reduction goal';
 		} finally {
 			loading = false;
 		}
