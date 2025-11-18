@@ -31,6 +31,14 @@
 		{
 			"source": "/me/:path*",
 			"destination": "http://api.smokehabit.com/me/:path*"
+		},
+		{
+			"source": "/reduction-goals",
+			"destination": "http://api.smokehabit.com/reduction-goals"
+		},
+		{
+			"source": "/reduction-goals/:path*",
+			"destination": "http://api.smokehabit.com/reduction-goals/:path*"
 		}
 	]
 }

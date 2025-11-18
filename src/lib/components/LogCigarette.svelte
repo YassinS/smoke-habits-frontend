@@ -6,7 +6,9 @@
 		fetchSmokeContexts,
 		createSmokeContext,
 		getPendingSyncCount,
-		syncPendingLogs
+		syncPendingLogs,
+		fetchReductionProgress,
+		type ReductionProgress
 	} from '$lib/api';
 	import { isOnline } from '$lib/offline';
 	import type { SmokeContext } from '$lib/api';
@@ -28,6 +30,8 @@
 	let online = true;
 	let pendingCount = 0;
 	let syncing = false;
+	let reductionProgress: ReductionProgress | null = null;
+	let loadingProgress = false;
 
 	async function loadContexts() {
 		try {
@@ -72,6 +76,17 @@
 		}
 	}
 
+	async function loadProgress() {
+		loadingProgress = true;
+		try {
+			reductionProgress = await fetchReductionProgress();
+		} catch (err) {
+			console.error('Failed to load reduction progress:', err);
+		} finally {
+			loadingProgress = false;
+		}
+	}
+
 	async function handleSync() {
 		syncing = true;
 		try {
@@ -87,6 +102,7 @@
 
 	onMount(() => {
 		void loadContexts();
+		void loadProgress();
 		checkOnlineStatus();
 
 		// Monitor online/offline status
@@ -184,6 +200,80 @@
 </script>
 
 <div class="space-y-4 rounded bg-white/5 p-4">
+	<!-- Reduction Progress Warning -->
+	{#if reductionProgress?.hasActiveGoal && !loadingProgress}
+		{#if reductionProgress.limitExceeded}
+			<div
+				class="flex items-center gap-2 rounded border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke-width="2"
+					stroke="currentColor"
+					class="h-5 w-5 shrink-0"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+					/>
+				</svg>
+				<div>
+					<strong>Limit exceeded!</strong> You've logged {reductionProgress.cigarettesLoggedToday} of
+					{reductionProgress.allowedCigarettesToday} allowed today.
+				</div>
+			</div>
+		{:else if reductionProgress.cigarettesRemaining <= 2}
+			<div
+				class="flex items-center gap-2 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke-width="2"
+					stroke="currentColor"
+					class="h-5 w-5 shrink-0"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+					/>
+				</svg>
+				<div>
+					<strong>Almost at your limit!</strong> Only {reductionProgress.cigarettesRemaining} remaining
+					today.
+				</div>
+			</div>
+		{:else}
+			<div
+				class="flex items-center gap-2 rounded border border-green-500/40 bg-green-500/10 p-2 text-xs text-green-200"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke-width="2"
+					stroke="currentColor"
+					class="h-4 w-4 shrink-0"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+					/>
+				</svg>
+				<span
+					>{reductionProgress.cigarettesRemaining} of {reductionProgress.allowedCigarettesToday} remaining
+					today</span
+				>
+			</div>
+		{/if}
+	{/if}
+
 	<!-- Online/Offline & Pending Status -->
 	{#if !online}
 		<div

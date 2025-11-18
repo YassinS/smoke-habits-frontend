@@ -6,6 +6,9 @@
 	import SummaryCards from '$lib/components/SummaryCards.svelte';
 	import DailyTimeline from '$lib/components/DailyTimeline.svelte';
 	import FabLog from '$lib/components/FabLog.svelte';
+	import ReductionProgress from '$lib/components/ReductionProgress.svelte';
+	import CreateGoalModal from '$lib/components/CreateGoalModal.svelte';
+	import GoalDetails from '$lib/components/GoalDetails.svelte';
 	import { getTokens } from '$lib/auth';
 	import { fetchCigaretteLogs, type CigaretteLog } from '$lib/api';
 	import { syncStatus } from '$lib/stores/sync';
@@ -14,8 +17,11 @@
 	let cigarettes: CigaretteLog[] = [];
 	let loading = false;
 	let error: string | null = null;
-	let tab: 'today' | 'insights' = 'today';
+	let tab: 'today' | 'goals' | 'insights' = 'today';
 	let analyticsComponent: Analytics | undefined;
+	let reductionProgressComponent: ReductionProgress | undefined;
+	let showCreateGoalModal = false;
+	let showGoalDetails = false;
 
 	async function loadCigs() {
 		loading = true;
@@ -60,6 +66,23 @@
 		if (analyticsComponent) {
 			void analyticsComponent.refetchAnalytics();
 		}
+		// Refresh reduction progress
+		if (reductionProgressComponent) {
+			void reductionProgressComponent.refresh();
+		}
+	}
+
+	function handleGoalCreated() {
+		showCreateGoalModal = false;
+		if (reductionProgressComponent) {
+			void reductionProgressComponent.refresh();
+		}
+	}
+
+	function handleGoalUpdated() {
+		if (reductionProgressComponent) {
+			void reductionProgressComponent.refresh();
+		}
 	}
 
 	// Watch for sync completion and refetch cigarettes
@@ -84,12 +107,34 @@
 			<SummaryCards {cigarettes} />
 		</section>
 
+		<!-- Reduction Progress -->
+		<section>
+			<div class="mb-3 flex items-center justify-between">
+				<h3 class="text-lg font-semibold text-white">Reduction Goal</h3>
+				<button
+					on:click={() => (showGoalDetails = true)}
+					class="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/15"
+				>
+					View Details
+				</button>
+			</div>
+			<ReductionProgress
+				bind:this={reductionProgressComponent}
+				onCreateGoal={() => (showCreateGoalModal = true)}
+			/>
+		</section>
+
 		<section class="mt-2">
 			<div class="flex items-center gap-2">
 				<button
 					class="rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium text-white hover:bg-white/15"
 					class:selected={tab === 'today'}
 					on:click={() => (tab = 'today')}>Today</button
+				>
+				<button
+					class="rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium text-white hover:bg-white/15"
+					class:selected={tab === 'goals'}
+					on:click={() => (tab = 'goals')}>Goals</button
 				>
 				<button
 					class="rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium text-white hover:bg-white/15"
@@ -105,6 +150,19 @@
 					<div class="rounded bg-red-500/10 p-4 text-red-300">{error}</div>
 				{:else if tab === 'today'}
 					<DailyTimeline {cigarettes} />
+				{:else if tab === 'goals'}
+					<div class="space-y-4">
+						<ReductionProgress
+							bind:this={reductionProgressComponent}
+							onCreateGoal={() => (showCreateGoalModal = true)}
+						/>
+						<button
+							on:click={() => (showGoalDetails = true)}
+							class="w-full rounded-lg bg-white/10 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/15"
+						>
+							View Goal Details & History
+						</button>
+					</div>
 				{:else}
 					<Analytics bind:this={analyticsComponent} {cigarettes} />
 				{/if}
@@ -113,4 +171,14 @@
 
 		<FabLog on:logged={onLogged} />
 	</main>
+
+	<!-- Modals -->
+	<CreateGoalModal bind:open={showCreateGoalModal} on:created={handleGoalCreated} />
+	<GoalDetails bind:open={showGoalDetails} on:updated={handleGoalUpdated} />
 {/if}
+
+<style>
+	.selected {
+		background-color: rgb(255 255 255 / 0.2);
+	}
+</style>

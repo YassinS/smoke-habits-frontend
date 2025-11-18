@@ -56,6 +56,44 @@ export type ContextAnalytics = {
 	colorUI?: string;
 };
 
+export type ReductionStrategy = 'LINEAR' | 'STEPPED' | 'GRADUAL';
+export type ReductionGoalStatus = 'ACTIVE' | 'COMPLETED' | 'ABANDONED' | 'PAUSED';
+
+export type ReductionGoal = {
+	id: string;
+	startingCigarettesPerDay: number;
+	targetCigarettesPerDay: number;
+	startDate: string;
+	endDate: string;
+	durationInDays: number;
+	strategy: ReductionStrategy;
+	status: ReductionGoalStatus;
+	createdAt: string;
+	completedAt?: string | null;
+	dailyReductionRate: number;
+	currentDayLimit: number;
+	daysElapsed: number;
+	daysRemaining: number;
+	progressPercentage: number;
+};
+
+export type CreateReductionGoalRequest = {
+	targetCigarettesPerDay: number;
+	durationInDays: number;
+	strategy?: ReductionStrategy;
+};
+
+export type ReductionProgress = {
+	hasActiveGoal: boolean;
+	allowedCigarettesToday: number;
+	cigarettesLoggedToday: number;
+	cigarettesRemaining: number;
+	limitExceeded: boolean;
+	message: string;
+	currentDate: string;
+	activeGoal?: ReductionGoal | null;
+};
+
 let refreshing: Promise<boolean> | null = null;
 
 async function doRefresh(): Promise<boolean> {
@@ -647,5 +685,100 @@ export async function getPendingSyncCount(): Promise<number> {
 		return pending.length;
 	} catch {
 		return 0;
+	}
+}
+
+// ========================================
+// Reduction Goals API
+// ========================================
+
+/**
+ * Get today's reduction progress
+ */
+export async function fetchReductionProgress(): Promise<ReductionProgress | null> {
+	try {
+		const data = await apiGet('/reduction-goals/progress');
+		return data;
+	} catch (err) {
+		console.error('Failed to fetch reduction progress:', err);
+		return null;
+	}
+}
+
+/**
+ * Get the active reduction goal
+ */
+export async function fetchActiveGoal(): Promise<ReductionGoal | null> {
+	try {
+		const data = await apiGet('/reduction-goals/active');
+		return data;
+	} catch (err) {
+		console.error('Failed to fetch active goal:', err);
+		return null;
+	}
+}
+
+/**
+ * Get all reduction goals (history)
+ */
+export async function fetchAllGoals(): Promise<ReductionGoal[]> {
+	try {
+		const data = await apiGet('/reduction-goals');
+		return data ?? [];
+	} catch (err) {
+		console.error('Failed to fetch goals:', err);
+		return [];
+	}
+}
+
+/**
+ * Create a new reduction goal
+ */
+export async function createReductionGoal(
+	request: CreateReductionGoalRequest
+): Promise<ReductionGoal> {
+	const res = await fetchWithAuth(`${API_BASE}/reduction-goals`, {
+		method: 'POST',
+		body: JSON.stringify(request)
+	});
+
+	if (!res.ok) {
+		const errorText = await res.text();
+		throw new Error(errorText || `Failed to create goal: ${res.status}`);
+	}
+
+	return res.json();
+}
+
+/**
+ * Update goal status (ACTIVE, PAUSED, ABANDONED, COMPLETED)
+ */
+export async function updateGoalStatus(
+	goalId: string,
+	status: ReductionGoalStatus
+): Promise<ReductionGoal> {
+	const res = await fetchWithAuth(`${API_BASE}/reduction-goals/${goalId}/status`, {
+		method: 'PATCH',
+		body: JSON.stringify({ status })
+	});
+
+	if (!res.ok) {
+		const errorText = await res.text();
+		throw new Error(errorText || `Failed to update goal status: ${res.status}`);
+	}
+
+	return res.json();
+}
+
+/**
+ * Get available reduction strategies
+ */
+export async function fetchAvailableStrategies(): Promise<Record<string, string>> {
+	try {
+		const data = await apiGet('/reduction-goals/strategies');
+		return data ?? {};
+	} catch (err) {
+		console.error('Failed to fetch strategies:', err);
+		return {};
 	}
 }
