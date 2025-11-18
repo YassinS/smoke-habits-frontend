@@ -12,11 +12,11 @@
 			</div>
 
 			<div class="flex flex-wrap items-center justify-center gap-6 text-sm">
-				<a href="/privacy-policy" class="hover:text-white transition-colors">
+				<a href="/privacy-policy" data-sveltekit-preload-data class="hover:text-white transition-colors">
 					Privacy Policy
 				</a>
 				<span class="text-white/20">·</span>
-				<a href="/user-agreement" class="hover:text-white transition-colors">
+				<a href="/user-agreement" data-sveltekit-preload-data class="hover:text-white transition-colors">
 					User Agreement
 				</a>
 			</div>
