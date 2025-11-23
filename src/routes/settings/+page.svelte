@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import Header from '$lib/components/Header.svelte';
 	import { getTokens, clearAuth } from '$lib/auth';
+	import { fetchWithAuth } from '$lib/api';
 
 	let deleting = false;
 	let error: string | null = null;
@@ -24,11 +25,8 @@
 				throw new Error('Not authenticated');
 			}
 
-			const res = await fetch('/me', {
-				method: 'DELETE',
-				headers: {
-					Authorization: `Bearer ${tokens.accessToken}`
-				}
+			const res = await fetchWithAuth('/me', {
+				method: 'DELETE'
 			});
 
 			if (!res.ok) {

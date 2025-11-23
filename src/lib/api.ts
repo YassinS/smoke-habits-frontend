@@ -5,7 +5,7 @@ export const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
 type RequestInitLike = RequestInit | undefined;
 
-import { setTokens, clearAuth, getTokens } from '$lib/auth';
+import { setTokens, clearAuth, getTokens, needsTokenRefresh } from '$lib/tokens';
 import {
 	validateEmail,
 	validatePassword,
@@ -117,6 +117,14 @@ async function doRefresh(): Promise<boolean> {
 }
 
 export async function fetchWithAuth(input: string, init?: RequestInitLike): Promise<Response> {
+	// Proactive token refresh: check if token needs refresh before making the request
+	if (needsTokenRefresh()) {
+		console.log('Token expired or expiring soon, proactively refreshing...');
+		if (!refreshing) refreshing = doRefresh();
+		await refreshing;
+		refreshing = null;
+	}
+
 	const tokens = getTokens();
 	const headers = new Headers(init?.headers || {});
 	if (tokens?.accessToken) headers.set('Authorization', `Bearer ${tokens.accessToken}`);
@@ -781,4 +789,26 @@ export async function fetchAvailableStrategies(): Promise<Record<string, string>
 		console.error('Failed to fetch strategies:', err);
 		return {};
 	}
+}
+
+/**
+ * Check if the current access token is valid and refresh if needed.
+ * Should be called on app initialization to ensure we have a valid token.
+ * @returns true if we have a valid token (either existing or after refresh), false otherwise
+ */
+export async function ensureValidToken(): Promise<boolean> {
+	const tokens = getTokens();
+	if (!tokens?.accessToken) return false;
+	if (!tokens?.refreshToken) return false;
+
+	// Check if token needs refresh
+	if (needsTokenRefresh()) {
+		console.log('Token expired on app load, refreshing...');
+		if (!refreshing) refreshing = doRefresh();
+		const ok = await refreshing;
+		refreshing = null;
+		return ok;
+	}
+
+	return true;
 }

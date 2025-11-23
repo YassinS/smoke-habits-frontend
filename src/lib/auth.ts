@@ -1,48 +1,17 @@
-import { writable, type Writable } from 'svelte/store';
-import { login as apiLogin, register as apiRegister } from './api';
+import { login as apiLogin, register as apiRegister, fetchWithAuth, ensureValidToken } from './api';
+import { getTokens, setTokens as setTokensCore, clearAuth as clearAuthCore, user } from './tokens';
 
-const STORAGE_KEY = 'smoke_auth_tokens_v1';
-
-type Tokens = { accessToken: string; refreshToken: string } | null;
-
-export const user: Writable<Record<string, unknown> | null> = writable(null);
-let tokens: Tokens = null;
-
-function persist(t: Tokens) {
-	tokens = t;
-	if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') return;
-	if (t) {
-		window.localStorage.setItem(STORAGE_KEY, JSON.stringify(t));
-	} else {
-		window.localStorage.removeItem(STORAGE_KEY);
-	}
-}
-
-export function getTokens(): Tokens {
-	if (tokens) return tokens;
-	if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') return null;
-	const raw = window.localStorage.getItem(STORAGE_KEY);
-	if (!raw) return null;
-	try {
-		tokens = JSON.parse(raw);
-		return tokens;
-	} catch {
-		return null;
-	}
-}
+export { user, getTokens } from './tokens';
 
 export function setTokens(accessToken: string, refreshToken: string) {
-	persist({ accessToken, refreshToken });
+	setTokensCore(accessToken, refreshToken);
 	// when tokens change, try to populate the user profile
 	// fire-and-forget: keep token setting synchronous but load user in background
 	void fetchMe();
 }
 
 export function clearAuth() {
-	tokens = null;
-	if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined')
-		window.localStorage.removeItem(STORAGE_KEY);
-	user.set(null);
+	clearAuthCore();
 }
 
 export async function login(email: string, password: string) {
@@ -77,13 +46,8 @@ export async function fetchMe(): Promise<void> {
 		return;
 	}
 	try {
-		const res = await fetch(`/me`, {
-			method: 'GET',
-			headers: {
-				'Content-Type': 'application/json',
-				Authorization: `Bearer ${t.accessToken}`
-			}
-		});
+		// Use fetchWithAuth to benefit from automatic token refresh
+		const res = await fetchWithAuth('/me', { method: 'GET' });
 		if (!res.ok) {
 			// if unauthorized, clear user
 			if (res.status === 401) user.set(null);
@@ -105,8 +69,15 @@ export function getAuth() {
 if (typeof window !== 'undefined') {
 	const t = getTokens();
 	if (t) {
-		// populate user profile on startup if tokens exist
-		void fetchMe();
+		// Ensure token is valid before fetching user profile
+		void ensureValidToken().then((valid) => {
+			if (valid) {
+				void fetchMe();
+			} else {
+				console.warn('Failed to refresh expired token on app load');
+				clearAuth();
+			}
+		});
 	}
 }
 
